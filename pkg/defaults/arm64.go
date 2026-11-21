@@ -66,11 +66,9 @@ func setDefaultArm64DisksBus(spec *v1.VirtualMachineInstanceSpec) {
 			disk.CDRom.Bus = bus
 		}
 		if disk.LUN != nil && disk.LUN.Bus == "" {
-			if disk.LUN.Reservation {
-				disk.LUN.Bus = v1.DiskBusSCSI
-			} else {
-				disk.LUN.Bus = bus
-			}
+			// libvirt only allows device=lun on scsi (sata is refused, and virtio needs
+			// virtio-blk SCSI passthrough, which QEMU removed in 9.1)
+			disk.LUN.Bus = v1.DiskBusSCSI
 		}
 	}
 

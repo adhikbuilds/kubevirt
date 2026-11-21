@@ -1013,7 +1013,7 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 				DiskDevice: v1.DiskDevice{
 					LUN: &v1.LunTarget{},
 				},
-			}, "LUN", v1.DiskBusVirtio),
+			}, "LUN", v1.DiskBusSCSI),
 	)
 
 	DescribeTable("should default LUN bus to SCSI when reservation is enabled", func(arch string) {

@@ -270,6 +270,37 @@ var _ = Describe("Defaults", func() {
 		)
 	})
 
+	Context("LUN disk bus", func() {
+		newLunDisk := func(lun v1.LunTarget) v1.Disk {
+			return v1.Disk{Name: "lun", DiskDevice: v1.DiskDevice{LUN: &lun}}
+		}
+
+		DescribeTable("should default an unset LUN bus to scsi", func(setArchDefaults func(*v1.VirtualMachineInstanceSpec), lun v1.LunTarget) {
+			spec := &v1.VirtualMachineInstanceSpec{}
+			spec.Domain.Devices.Disks = []v1.Disk{newLunDisk(lun)}
+			setArchDefaults(spec)
+			Expect(spec.Domain.Devices.Disks[0].LUN.Bus).To(Equal(v1.DiskBusSCSI))
+		},
+			Entry("on amd64", defaults.SetAmd64Defaults, v1.LunTarget{}),
+			Entry("on arm64", defaults.SetArm64Defaults, v1.LunTarget{}),
+			Entry("on s390x", defaults.SetS390xDefaults, v1.LunTarget{}),
+			Entry("on amd64 with reservation", defaults.SetAmd64Defaults, v1.LunTarget{Reservation: true}),
+			Entry("on arm64 with reservation", defaults.SetArm64Defaults, v1.LunTarget{Reservation: true}),
+			Entry("on s390x with reservation", defaults.SetS390xDefaults, v1.LunTarget{Reservation: true}),
+		)
+
+		DescribeTable("should keep an explicitly set LUN bus", func(setArchDefaults func(*v1.VirtualMachineInstanceSpec)) {
+			spec := &v1.VirtualMachineInstanceSpec{}
+			spec.Domain.Devices.Disks = []v1.Disk{newLunDisk(v1.LunTarget{Bus: v1.DiskBusSATA})}
+			setArchDefaults(spec)
+			Expect(spec.Domain.Devices.Disks[0].LUN.Bus).To(Equal(v1.DiskBusSATA))
+		},
+			Entry("on amd64", defaults.SetAmd64Defaults),
+			Entry("on arm64", defaults.SetArm64Defaults),
+			Entry("on s390x", defaults.SetS390xDefaults),
+		)
+	})
+
 	Context("SupportsPCIeHotplug", func() {
 		DescribeTable("should report PCIe hotplug support based on architecture and machine type",
 			func(arch string, machineType *string, expected bool) {
