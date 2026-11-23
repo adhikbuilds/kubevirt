@@ -1016,7 +1016,7 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 			}, "LUN", v1.DiskBusSCSI),
 	)
 
-	DescribeTable("should default LUN bus to SCSI when reservation is enabled", func(arch string) {
+	DescribeTable("should default an unset LUN bus to SCSI", func(arch string, reservation bool) {
 		vmi.Spec.Volumes = append(vmi.Spec.Volumes, v1.Volume{
 			Name: "a",
 			VolumeSource: v1.VolumeSource{
@@ -1031,16 +1031,19 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 			Name: "a",
 			DiskDevice: v1.DiskDevice{
 				LUN: &v1.LunTarget{
-					Reservation: true,
+					Reservation: reservation,
 				},
 			},
 		})
 		_, vmiSpec, _ := getMetaSpecStatusFromAdmitWithArch(arch)
 		Expect(vmiSpec.Domain.Devices.Disks[0].DiskDevice.LUN.Bus).To(Equal(v1.DiskBusSCSI))
 	},
-		Entry("on amd64", "amd64"),
-		Entry("on arm64", "arm64"),
-		Entry("on s390x", "s390x"),
+		Entry("on amd64", "amd64", false),
+		Entry("on arm64", "arm64", false),
+		Entry("on s390x", "s390x", false),
+		Entry("on amd64 with reservation", "amd64", true),
+		Entry("on arm64 with reservation", "arm64", true),
+		Entry("on s390x with reservation", "s390x", true),
 	)
 
 	var (

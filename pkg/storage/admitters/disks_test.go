@@ -205,7 +205,7 @@ var _ = Describe("Disk Validation", func() {
 				Name: "testdisk2",
 				DiskDevice: v1.DiskDevice{
 					LUN: &v1.LunTarget{
-						Bus: v1.DiskBusSATA,
+						Bus: v1.DiskBusSCSI,
 					},
 				},
 			})
@@ -259,6 +259,21 @@ var _ = Describe("Disk Validation", func() {
 			Expect(causes[0].Field).To(Equal("fake[0].disk.bus"))
 			Expect(causes[1].Field).To(Equal("fake[1].lun.bus"))
 		})
+
+		DescribeTable("should reject LUN with a non-SCSI bus", func(bus v1.DiskBus) {
+			vmi.Spec.Domain.Devices.Disks = append(vmi.Spec.Domain.Devices.Disks, v1.Disk{
+				Name:       "testdisk",
+				DiskDevice: v1.DiskDevice{LUN: &v1.LunTarget{Bus: bus}},
+			})
+			causes := ValidateDisks(k8sfield.NewPath("fake"), vmi.Spec.Domain.Devices.Disks)
+			Expect(causes).To(HaveLen(1))
+			Expect(causes[0].Field).To(Equal("fake[0].lun.bus"))
+			Expect(causes[0].Message).To(Equal(fmt.Sprintf("LUN disks require a SCSI bus, but %s was specified", bus)))
+		},
+			Entry("virtio", v1.DiskBusVirtio),
+			Entry("sata", v1.DiskBusSATA),
+			Entry("usb", v1.DiskBusUSB),
+		)
 
 		It("should reject LUN with reservation and non-SCSI bus", func() {
 			vmi.Spec.Domain.Devices.Disks = append(vmi.Spec.Domain.Devices.Disks, v1.Disk{

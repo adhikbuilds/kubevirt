@@ -1246,6 +1246,33 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 				}, 0),
 		)
 
+		DescribeTable("should validate the LUN bus",
+			func(bus v1.DiskBus, expectedErrors int) {
+				vmi.Spec.Domain.Devices.Disks = append(vmi.Spec.Domain.Devices.Disks, v1.Disk{
+					Name: "testdisk",
+					DiskDevice: v1.DiskDevice{
+						LUN: &v1.LunTarget{Bus: bus},
+					},
+				})
+				vmi.Spec.Volumes = append(vmi.Spec.Volumes, v1.Volume{
+					Name: "testdisk",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{},
+					},
+				})
+
+				causes := ValidateVirtualMachineInstanceSpec(k8sfield.NewPath("fake"), &vmi.Spec, config)
+				Expect(causes).To(HaveLen(expectedErrors))
+				if expectedErrors > 0 {
+					Expect(causes[0].Field).To(Equal("fake.domain.devices.disks[0].lun.bus"))
+				}
+			},
+			Entry("and accept scsi", v1.DiskBusSCSI, 0),
+			Entry("and accept an unset bus", v1.DiskBus(""), 0),
+			Entry("and reject virtio", v1.DiskBusVirtio, 1),
+			Entry("and reject sata", v1.DiskBusSATA, 1),
+		)
+
 		It("should reject disks with the same boot order", func() {
 			order := uint(1)
 			vmi.Spec.Domain.Devices.Disks = append(vmi.Spec.Domain.Devices.Disks, []v1.Disk{

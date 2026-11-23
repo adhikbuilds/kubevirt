@@ -52,7 +52,7 @@ func ValidateDisks(field *k8sfield.Path, disks []v1.Disk) []metav1.StatusCause {
 		causes = append(causes, validatePciAddress(field, idx, disk)...)
 		causes = append(causes, validateBootOrderValue(field, idx, disk)...)
 		causes = append(causes, validateBusSupport(field, idx, disk)...)
-		causes = append(causes, validateReservationBus(field, idx, disk)...)
+		causes = append(causes, validateLunBus(field, idx, disk)...)
 		causes = append(causes, validateSerialNumValue(field, idx, disk)...)
 		causes = append(causes, validateSerialNumLength(field, idx, disk)...)
 		causes = append(causes, validateCacheMode(field, idx, disk)...)
@@ -231,16 +231,31 @@ func validateBusSupport(field *k8sfield.Path, idx int, disk v1.Disk) []metav1.St
 	return causes
 }
 
-func validateReservationBus(field *k8sfield.Path, idx int, disk v1.Disk) []metav1.StatusCause {
-	var causes []metav1.StatusCause
-	if disk.LUN != nil && disk.LUN.Reservation && disk.LUN.Bus != v1.DiskBusSCSI {
-		causes = append(causes, metav1.StatusCause{
+// validateLunBus rejects LUN disks on a bus other than scsi. libvirt only
+// accepts device='lun' on scsi: it refuses sata and usb, and virtio needs
+// virtio-blk SCSI passthrough, which QEMU removed in 9.1. An unset bus is
+// allowed (it is defaulted to scsi), except with a persistent reservation.
+// Unrecognized buses are already reported by validateBusSupport.
+func validateLunBus(field *k8sfield.Path, idx int, disk v1.Disk) []metav1.StatusCause {
+	if disk.LUN == nil || disk.LUN.Bus == v1.DiskBusSCSI {
+		return nil
+	}
+	if disk.LUN.Reservation {
+		return []metav1.StatusCause{{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("Persistent reservation requires a SCSI bus, but %s was specified", disk.LUN.Bus),
 			Field:   field.Index(idx).Child("lun", "bus").String(),
-		})
+		}}
 	}
-	return causes
+	switch disk.LUN.Bus {
+	case v1.DiskBusVirtio, v1.DiskBusSATA, v1.DiskBusUSB:
+		return []metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("LUN disks require a SCSI bus, but %s was specified", disk.LUN.Bus),
+			Field:   field.Index(idx).Child("lun", "bus").String(),
+		}}
+	}
+	return nil
 }
 
 func validateSerialNumValue(field *k8sfield.Path, idx int, disk v1.Disk) []metav1.StatusCause {
